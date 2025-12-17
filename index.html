@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School Fee Management</title>
+    <title>School Fee Management - Cloud Edition</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -54,7 +54,7 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             padding: 40px;
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
             text-align: center;
         }
         
@@ -145,6 +145,7 @@
         .btn-warning { background-color: var(--warning-color); }
         .btn-danger { background-color: var(--danger-color); }
         .btn-info { background-color: #17a2b8; }
+        .btn-github { background-color: #333; color: white; }
         
         .btn-block {
             display: block;
@@ -232,7 +233,7 @@
             min-height: calc(100vh - 56px);
         }
         
-        /* Sidebar - Reduced */
+        /* Sidebar */
         .sidebar {
             background-color: white;
             width: 200px;
@@ -640,10 +641,6 @@
             margin-bottom: 15px;
         }
         
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
         .form-group label {
             display: block;
             margin-bottom: 6px;
@@ -736,6 +733,10 @@
         
         .toast.warning {
             background-color: var(--warning-color);
+        }
+        
+        .toast.info {
+            background-color: var(--secondary-color);
         }
         
         @keyframes slideIn {
@@ -897,6 +898,39 @@
             text-align: left;
         }
         
+        /* Sync Status */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--gray-color);
+        }
+        
+        .sync-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--success-color);
+            animation: pulse 2s infinite;
+        }
+        
+        .sync-indicator.offline {
+            background-color: var(--gray-color);
+            animation: none;
+        }
+        
+        .sync-indicator.syncing {
+            background-color: var(--warning-color);
+            animation: pulse 0.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
         /* Print Styles */
         @media print {
             body * {
@@ -990,7 +1024,7 @@
                     <span>FeeSystem</span>
                 </div>
                 <h1>School Fee Management</h1>
-                <p>Complete fee management solution</p>
+                <p>Complete fee management solution with cloud sync</p>
             </div>
             
             <form id="loginForm">
@@ -1006,8 +1040,19 @@
                 
                 <button type="submit" class="btn btn-primary btn-block">Login</button>
                 
+                <div id="githubLoginSection" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    <p style="text-align: center; margin-bottom: 10px;">Or login with GitHub for cloud sync</p>
+                    <button type="button" id="githubLoginBtn" class="btn btn-github btn-block">
+                        <i class="fab fa-github"></i> Login with GitHub
+                    </button>
+                    <p style="font-size: 12px; color: #666; margin-top: 10px; text-align: center;">
+                        <i class="fas fa-cloud"></i> Cloud sync allows access from multiple devices
+                    </p>
+                </div>
+                
                 <div style="margin-top: 20px; font-size: 13px; color: #7f8c8d; text-align: left;">
                     <p><strong>Demo Accounts:</strong></p>
+                    <p>• Admin: admin / admin123</p>
                     <p>• Teacher: teacher / teacher123</p>
                 </div>
             </form>
@@ -1021,12 +1066,17 @@
             <div class="container header-content">
                 <div class="header-left">
                     <div class="school-name" id="schoolNameDisplay">Bright Future Academy</div>
+                    <div class="sync-status" id="syncStatus">
+                        <div class="sync-indicator" id="syncIndicator"></div>
+                        <span id="syncText">Synced</span>
+                    </div>
                 </div>
                 
                 <div class="header-right">
                     <div class="user-info">
                         <span class="user-role admin" id="userRoleDisplay">Admin</span>
                         <span id="userNameDisplay">Administrator</span>
+                        <span id="githubUserInfo" style="font-size: 12px; color: var(--gray-color);"></span>
                     </div>
                     <button id="logoutBtn" class="btn btn-danger btn-small">Logout</button>
                 </div>
@@ -1129,6 +1179,9 @@
                                     </button>
                                     <button id="importExcelBtn" class="btn btn-warning btn-small">
                                         <i class="fas fa-upload"></i> Import Excel
+                                    </button>
+                                    <button id="syncNowBtn" class="btn btn-success btn-small">
+                                        <i class="fas fa-sync-alt"></i> Sync Now
                                     </button>
                                 </div>
                             </div>
@@ -1926,8 +1979,295 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <script>
-        // School Fee Management System
-        class FeeManagementSystem {
+        // Serverless backend URL (replace with your own when deploying)
+        const BACKEND_URL = 'https://fee-system-backend.vercel.app';
+        // const BACKEND_URL = 'http://localhost:3000'; // For local testing
+        
+        // GitHub Storage Service
+        class GitHubStorage {
+            constructor() {
+                this.token = null;
+                this.gistId = null;
+                this.username = null;
+                this.autoSaveEnabled = true;
+                this.syncInterval = null;
+            }
+
+            async initialize() {
+                // Load from localStorage
+                this.token = localStorage.getItem('github_token');
+                this.gistId = localStorage.getItem('gist_id');
+                this.username = localStorage.getItem('github_username');
+                
+                if (this.token) {
+                    const isValid = await this.verifyToken();
+                    if (isValid) {
+                        await this.findOrCreateGist();
+                        this.startAutoSync();
+                    } else {
+                        this.clearAuth();
+                    }
+                }
+            }
+
+            clearAuth() {
+                localStorage.removeItem('github_token');
+                localStorage.removeItem('gist_id');
+                localStorage.removeItem('github_username');
+                this.token = null;
+                this.gistId = null;
+                this.username = null;
+                this.stopAutoSync();
+            }
+
+            async authenticate() {
+                // Generate state to prevent CSRF
+                const state = Math.random().toString(36).substring(2);
+                localStorage.setItem('github_auth_state', state);
+                
+                // Redirect to GitHub OAuth
+                const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+                const authUrl = `${BACKEND_URL}/api/auth/github?state=${state}&redirect_uri=${redirectUri}`;
+                window.location.href = authUrl;
+            }
+
+            async handleOAuthCallback(code, state) {
+                const savedState = localStorage.getItem('github_auth_state');
+                if (state !== savedState) {
+                    throw new Error('Invalid state parameter');
+                }
+
+                try {
+                    const response = await fetch(`${BACKEND_URL}/api/auth/token`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Token exchange failed');
+                    }
+
+                    const data = await response.json();
+                    
+                    this.token = data.access_token;
+                    this.username = data.username || data.login;
+                    
+                    localStorage.setItem('github_token', this.token);
+                    localStorage.setItem('github_username', this.username);
+                    localStorage.removeItem('github_auth_state');
+                    
+                    await this.findOrCreateGist();
+                    this.startAutoSync();
+                    
+                    return true;
+                } catch (error) {
+                    console.error('OAuth callback error:', error);
+                    this.clearAuth();
+                    return false;
+                }
+            }
+
+            async findOrCreateGist() {
+                try {
+                    // First, try to get user's gists
+                    const response = await fetch('https://api.github.com/gists', {
+                        headers: {
+                            'Authorization': `token ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch gists');
+                    }
+
+                    const gists = await response.json();
+                    const feeSystemGist = gists.find(g => 
+                        g.description === 'School Fee Management System Data' ||
+                        Object.keys(g.files).some(f => f.includes('fee-data'))
+                    );
+
+                    if (feeSystemGist) {
+                        this.gistId = feeSystemGist.id;
+                        localStorage.setItem('gist_id', this.gistId);
+                        return true;
+                    } else {
+                        return await this.createGist();
+                    }
+                } catch (error) {
+                    console.error('Error finding/creating gist:', error);
+                    return false;
+                }
+            }
+
+            async createGist() {
+                try {
+                    const initialData = {
+                        families: [],
+                        transactions: [],
+                        users: [],
+                        settings: {},
+                        lastFamilyId: 0,
+                        lastTransactionId: 0,
+                        lastUserId: 0,
+                        version: "3.0",
+                        created: new Date().toISOString()
+                    };
+
+                    const response = await fetch('https://api.github.com/gists', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `token ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            description: 'School Fee Management System Data',
+                            public: false,
+                            files: {
+                                'fee-data.json': {
+                                    content: JSON.stringify(initialData, null, 2)
+                                }
+                            }
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to create gist');
+                    }
+
+                    const data = await response.json();
+                    this.gistId = data.id;
+                    localStorage.setItem('gist_id', this.gistId);
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Error creating gist:', error);
+                    return false;
+                }
+            }
+
+            async saveData(systemData) {
+                if (!this.token || !this.gistId) {
+                    throw new Error('Not authenticated with GitHub');
+                }
+
+                try {
+                    const dataToSave = {
+                        families: systemData.families,
+                        transactions: systemData.transactions,
+                        users: systemData.users,
+                        settings: systemData.settings,
+                        lastFamilyId: systemData.lastFamilyId,
+                        lastTransactionId: systemData.lastTransactionId,
+                        lastUserId: systemData.lastUserId,
+                        version: "3.0",
+                        lastSync: new Date().toISOString()
+                    };
+
+                    const response = await fetch(`https://api.github.com/gists/${this.gistId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `token ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            files: {
+                                'fee-data.json': {
+                                    content: JSON.stringify(dataToSave, null, 2)
+                                }
+                            }
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to save to GitHub');
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Error saving to GitHub:', error);
+                    throw error;
+                }
+            }
+
+            async loadData() {
+                if (!this.token || !this.gistId) {
+                    return null;
+                }
+
+                try {
+                    const response = await fetch(`https://api.github.com/gists/${this.gistId}`, {
+                        headers: {
+                            'Authorization': `token ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to load from GitHub');
+                    }
+
+                    const gist = await response.json();
+                    const file = gist.files['fee-data.json'];
+                    
+                    if (!file || !file.content) {
+                        throw new Error('No data file found in gist');
+                    }
+
+                    const content = JSON.parse(file.content);
+                    return content;
+                } catch (error) {
+                    console.error('Error loading from GitHub:', error);
+                    throw error;
+                }
+            }
+
+            async verifyToken() {
+                if (!this.token) return false;
+
+                try {
+                    const response = await fetch('https://api.github.com/user', {
+                        headers: {
+                            'Authorization': `token ${this.token}`
+                        }
+                    });
+                    return response.ok;
+                } catch (error) {
+                    return false;
+                }
+            }
+
+            startAutoSync() {
+                this.stopAutoSync();
+                // Sync every 30 seconds
+                this.syncInterval = setInterval(async () => {
+                    if (this.autoSaveEnabled && this.token) {
+                        try {
+                            await window.system.saveToCloud();
+                        } catch (error) {
+                            console.log('Auto-sync failed:', error);
+                        }
+                    }
+                }, 30000);
+            }
+
+            stopAutoSync() {
+                if (this.syncInterval) {
+                    clearInterval(this.syncInterval);
+                    this.syncInterval = null;
+                }
+            }
+
+            isConnected() {
+                return !!(this.token && this.gistId);
+            }
+        }
+
+        // Enhanced Fee Management System
+        class EnhancedFeeManagementSystem {
             constructor() {
                 this.currentUser = null;
                 this.isAdmin = false;
@@ -1937,13 +2277,132 @@
                 this.monthOrder = [...this.settings.feeMonths];
                 this.currentInvoiceFamilyId = null;
                 this.excelUploadData = null;
+                
+                this.githubStorage = new GitHubStorage();
+                this.isOnline = false;
+                this.lastSyncTime = null;
+                
                 this.init();
             }
             
             init() {
                 this.setupEventListeners();
                 this.loadFromLocalStorage();
+                this.handleOAuthCallbackFromURL();
+                this.githubStorage.initialize().then(() => {
+                    this.updateOnlineStatus();
+                    if (this.githubStorage.isConnected()) {
+                        this.syncFromCloud();
+                    }
+                });
                 this.updateUI();
+            }
+            
+            handleOAuthCallbackFromURL() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                const state = urlParams.get('state');
+                
+                if (code && state) {
+                    this.githubStorage.handleOAuthCallback(code, state).then(success => {
+                        if (success) {
+                            this.updateOnlineStatus();
+                            this.syncFromCloud().then(() => {
+                                this.showToast('Successfully connected to GitHub!', 'success');
+                                // Clean URL
+                                window.history.replaceState({}, document.title, window.location.pathname);
+                            });
+                        }
+                    });
+                }
+            }
+            
+            updateOnlineStatus() {
+                this.isOnline = this.githubStorage.isConnected();
+                const indicator = document.getElementById('syncIndicator');
+                const syncText = document.getElementById('syncText');
+                const githubUserInfo = document.getElementById('githubUserInfo');
+                
+                if (this.isOnline) {
+                    indicator.className = 'sync-indicator';
+                    syncText.textContent = 'Synced';
+                    githubUserInfo.textContent = `@${this.githubStorage.username}`;
+                    githubUserInfo.style.display = 'inline';
+                } else {
+                    indicator.className = 'sync-indicator offline';
+                    syncText.textContent = 'Offline';
+                    githubUserInfo.style.display = 'none';
+                }
+            }
+            
+            async syncFromCloud() {
+                if (!this.githubStorage.isConnected()) return;
+                
+                try {
+                    const indicator = document.getElementById('syncIndicator');
+                    indicator.className = 'sync-indicator syncing';
+                    
+                    const cloudData = await this.githubStorage.loadData();
+                    if (cloudData) {
+                        // Merge strategy: Use cloud data, but keep local changes if newer?
+                        // For now, just replace local with cloud data
+                        this.data.families = cloudData.families || [];
+                        this.data.transactions = cloudData.transactions || [];
+                        this.data.users = cloudData.users || [];
+                        this.data.lastFamilyId = cloudData.lastFamilyId || 0;
+                        this.data.lastTransactionId = cloudData.lastTransactionId || 0;
+                        this.data.lastUserId = cloudData.lastUserId || 0;
+                        
+                        if (cloudData.settings) {
+                            this.settings = { ...this.settings, ...cloudData.settings };
+                            this.monthOrder = [...this.settings.feeMonths];
+                        }
+                        
+                        this.saveToLocalStorage();
+                        this.lastSyncTime = new Date().toISOString();
+                        
+                        // Update UI
+                        this.loadFamiliesTable();
+                        this.loadDashboard();
+                        
+                        indicator.className = 'sync-indicator';
+                        this.showToast('Data synced from cloud', 'success');
+                    }
+                } catch (error) {
+                    console.error('Sync error:', error);
+                    this.showToast('Cloud sync failed', 'error');
+                    document.getElementById('syncIndicator').className = 'sync-indicator offline';
+                }
+            }
+            
+            async saveToCloud() {
+                if (!this.githubStorage.isConnected()) return;
+                
+                try {
+                    await this.githubStorage.saveData(this.data);
+                    this.lastSyncTime = new Date().toISOString();
+                    return true;
+                } catch (error) {
+                    console.error('Save to cloud error:', error);
+                    return false;
+                }
+            }
+            
+            async saveWithCloudSync() {
+                // Save to localStorage first
+                this.saveToLocalStorage();
+                
+                // Then sync to cloud
+                if (this.githubStorage.isConnected()) {
+                    try {
+                        await this.saveToCloud();
+                        this.showToast('Saved & synced to cloud', 'success');
+                    } catch (error) {
+                        this.showToast('Saved locally (cloud sync failed)', 'warning');
+                    }
+                } else {
+                    this.showToast('Saved locally', 'info');
+                }
             }
             
             loadDefaultSettings() {
@@ -2041,6 +2500,9 @@
                 // Login form
                 document.getElementById('loginForm').addEventListener('submit', (e) => this.handleLogin(e));
                 
+                // GitHub login
+                document.getElementById('githubLoginBtn').addEventListener('click', () => this.githubStorage.authenticate());
+                
                 // Logout
                 document.getElementById('logoutBtn').addEventListener('click', () => this.handleLogout());
                 
@@ -2097,6 +2559,9 @@
                 document.getElementById('excelFileInput').addEventListener('change', (e) => this.handleExcelUpload(e));
                 document.getElementById('confirmUpload').addEventListener('click', () => this.confirmExcelUpload());
                 
+                // Sync button
+                document.getElementById('syncNowBtn').addEventListener('click', () => this.syncNow());
+                
                 // Modal close buttons
                 document.getElementById('closeInvoiceModal').addEventListener('click', () => this.closeModal('invoiceModal'));
                 document.getElementById('closePaymentModal').addEventListener('click', () => this.closeModal('paymentModal'));
@@ -2131,6 +2596,19 @@
                 this.initMonthSorter();
             }
             
+            async syncNow() {
+                const indicator = document.getElementById('syncIndicator');
+                indicator.className = 'sync-indicator syncing';
+                
+                try {
+                    await this.saveToCloud();
+                    await this.syncFromCloud();
+                    this.showToast('Sync completed successfully', 'success');
+                } catch (error) {
+                    this.showToast('Sync failed', 'error');
+                }
+            }
+            
             handleLogin(e) {
                 e.preventDefault();
                 
@@ -2148,7 +2626,7 @@
                     
                     // Update last login
                     user.lastLogin = new Date().toISOString();
-                    this.saveToLocalStorage();
+                    this.saveWithCloudSync();
                     
                     document.getElementById('loginPage').style.display = 'none';
                     document.getElementById('appContainer').style.display = 'block';
@@ -2270,7 +2748,7 @@
                 
                 familyData.id = ++this.data.lastFamilyId;
                 this.data.families.push(familyData);
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 
                 document.getElementById('quickFNo').value = '';
                 document.getElementById('quickFatherName').value = '';
@@ -2416,7 +2894,8 @@
             updateMonthOrderFromTable() {
                 const headers = document.querySelectorAll('.month-header');
                 this.monthOrder = Array.from(headers).map(h => h.getAttribute('data-month'));
-                this.saveToLocalStorage();
+                this.settings.feeMonths = [...this.monthOrder];
+                this.saveWithCloudSync();
             }
             
             reorderMonthCells() {
@@ -2544,7 +3023,7 @@
                         family.contact = newValue;
                     }
                     
-                    this.saveToLocalStorage();
+                    this.saveWithCloudSync();
                     
                     if (field === 'monthlyFee') {
                         element.textContent = 'PKR ' + (family.monthlyFee || 0).toLocaleString();
@@ -2598,7 +3077,7 @@
                 
                 familyData.id = ++this.data.lastFamilyId;
                 this.data.families.push(familyData);
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 
                 e.target.reset();
                 this.switchTab('feeRegister');
@@ -2644,7 +3123,7 @@
                 family.address = document.getElementById('newAddress').value;
                 family.email = document.getElementById('newEmail').value;
                 
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 
                 document.getElementById('familyForm').reset();
                 const submitBtn = document.querySelector('#familyForm button[type="submit"]');
@@ -2664,7 +3143,7 @@
                 const index = this.data.families.findIndex(f => f.id === familyId);
                 if (index !== -1) {
                     this.data.families.splice(index, 1);
-                    this.saveToLocalStorage();
+                    this.saveWithCloudSync();
                     this.loadFamiliesTable();
                     this.showToast('Family deleted successfully');
                 }
@@ -2729,7 +3208,7 @@
                 };
                 this.data.transactions.push(transaction);
                 
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 this.closeModal('paymentModal');
                 this.loadFamiliesTable();
                 this.loadPaymentHistory();
@@ -3243,7 +3722,7 @@
                 };
                 
                 this.data.transactions.push(transaction);
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 
                 e.target.reset();
                 document.getElementById('transDate').value = new Date().toISOString().split('T')[0];
@@ -3258,7 +3737,7 @@
                 const index = this.data.transactions.findIndex(t => t.id === transactionId);
                 if (index !== -1) {
                     this.data.transactions.splice(index, 1);
-                    this.saveToLocalStorage();
+                    this.saveWithCloudSync();
                     this.loadTransactions();
                     this.showToast('Transaction deleted');
                 }
@@ -3668,7 +4147,7 @@
                 this.settings.schoolEmail = document.getElementById('schoolEmail').value;
                 this.settings.academicYear = document.getElementById('academicYear').value;
                 
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 this.updateUI();
                 
                 this.showToast('School settings saved');
@@ -3719,7 +4198,7 @@
                 const months = Array.from(monthItems).map(item => item.getAttribute('data-month'));
                 this.settings.feeMonths = months;
                 this.monthOrder = [...months];
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 
                 this.loadFamiliesTable();
             }
@@ -3730,7 +4209,7 @@
                 this.settings.gracePeriod = parseInt(document.getElementById('gracePeriod').value) || 0;
                 this.settings.useBothLateFees = document.getElementById('useBothLateFees').checked;
                 
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 this.showToast('Fee settings saved');
             }
             
@@ -3831,7 +4310,7 @@
                     this.showToast('User added');
                 }
                 
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 this.closeModal('userModal');
                 this.loadUsersTable();
             }
@@ -3842,7 +4321,7 @@
                 const index = this.data.users.findIndex(u => u.id === userId);
                 if (index !== -1) {
                     this.data.users.splice(index, 1);
-                    this.saveToLocalStorage();
+                    this.saveWithCloudSync();
                     this.loadUsersTable();
                     this.showToast('User deleted');
                 }
@@ -3979,7 +4458,7 @@
                     }
                 });
                 
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 this.loadFamiliesTable();
                 
                 this.showToast(`Upload complete: ${addedCount} added, ${updatedCount} updated`);
@@ -4108,7 +4587,7 @@
                     description: 'Manual backup'
                 });
                 
-                this.saveToLocalStorage();
+                this.saveWithCloudSync();
                 this.loadBackups();
                 
                 this.showToast('Backup created successfully');
@@ -4147,7 +4626,7 @@
                             this.settings = backupData.settings || this.loadDefaultSettings();
                             this.monthOrder = [...this.settings.feeMonths];
                             
-                            this.saveToLocalStorage();
+                            this.saveWithCloudSync();
                             
                             this.showToast('Data restored successfully');
                             this.loadFamiliesTable();
@@ -4199,6 +4678,9 @@
                 this.data = this.getDefaultDataStructure();
                 this.settings = this.loadDefaultSettings();
                 this.monthOrder = [...this.settings.feeMonths];
+                this.githubStorage.clearAuth();
+                this.updateOnlineStatus();
+                
                 this.saveToLocalStorage();
                 
                 this.showToast('All data cleared');
@@ -4242,7 +4724,7 @@
                 
                 toastMessage.textContent = message;
                 toast.className = 'toast';
-                toast.classList.add(type === 'error' ? 'error' : type === 'warning' ? 'warning' : '');
+                toast.classList.add(type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info');
                 toast.style.display = 'flex';
                 
                 setTimeout(() => {
@@ -4262,7 +4744,7 @@
         }
         
         // Initialize the system
-        const system = new FeeManagementSystem();
+        const system = new EnhancedFeeManagementSystem();
         
         // Make system available globally
         window.system = system;
