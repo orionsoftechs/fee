@@ -431,6 +431,27 @@
             border-bottom: 2px solid var(--border-color);
             white-space: nowrap;
             background-color: var(--light-gray);
+            cursor: move;
+            position: relative;
+        }
+        
+        .month-header {
+            position: relative;
+            min-width: 80px;
+        }
+        
+        .month-header i {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-color);
+            font-size: 10px;
+            opacity: 0.5;
+        }
+        
+        .month-header:hover i {
+            opacity: 1;
         }
         
         td {
@@ -845,6 +866,37 @@
             font-weight: 600;
         }
         
+        /* Excel Upload Styles */
+        .excel-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background-color: var(--light-gray);
+        }
+        
+        .excel-upload-area:hover {
+            border-color: var(--secondary-color);
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .excel-upload-area i {
+            font-size: 48px;
+            color: var(--success-color);
+            margin-bottom: 15px;
+        }
+        
+        .excel-template {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            font-size: 12px;
+            text-align: left;
+        }
+        
         /* Print Styles */
         @media print {
             body * {
@@ -1028,6 +1080,7 @@
                     <div class="tabs">
                         <div class="tab active" data-tab="feeRegister">Fee Register</div>
                         <div class="tab" data-tab="addFamily">Add New Family</div>
+                        <div class="tab" data-tab="bulkUpload">Bulk Upload</div>
                         <div class="tab" data-tab="paymentHistory">Payment History</div>
                     </div>
                     
@@ -1075,8 +1128,8 @@
                                     <button id="exportData" class="btn btn-info btn-small">
                                         <i class="fas fa-download"></i> Export
                                     </button>
-                                    <button id="importData" class="btn btn-warning btn-small">
-                                        <i class="fas fa-upload"></i> Import
+                                    <button id="importExcelBtn" class="btn btn-warning btn-small">
+                                        <i class="fas fa-upload"></i> Import Excel
                                     </button>
                                 </div>
                             </div>
@@ -1147,6 +1200,48 @@
                                     <i class="fas fa-save"></i> Save Family
                                 </button>
                             </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Bulk Upload Tab -->
+                    <div class="tab-content" id="bulkUploadTab">
+                        <div class="form-container">
+                            <h3 style="margin-bottom: 20px; color: var(--primary-color);">Bulk Upload Families</h3>
+                            
+                            <div class="excel-upload-area" id="excelUploadArea">
+                                <i class="fas fa-file-excel"></i>
+                                <h4>Upload Excel File</h4>
+                                <p>Drag & drop your Excel file here or click to browse</p>
+                                <p style="font-size: 12px; color: var(--gray-color); margin-top: 10px;">
+                                    Supported formats: .xlsx, .xls, .csv
+                                </p>
+                                <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display: none;">
+                            </div>
+                            
+                            <div class="excel-template">
+                                <h5>Excel Template Format:</h5>
+                                <p><strong>Required Columns:</strong></p>
+                                <ul>
+                                    <li><strong>F.No.</strong> - Family Number (Number)</li>
+                                    <li><strong>Father Name</strong> - Full name of father</li>
+                                    <li><strong>Students</strong> - Student names (comma separated)</li>
+                                    <li><strong>Classes</strong> - Class names (comma separated)</li>
+                                    <li><strong>Contact</strong> - Contact number</li>
+                                    <li><strong>Monthly Fee</strong> - Monthly fee amount</li>
+                                </ul>
+                                <p><strong>Optional Columns:</strong> Address, Email</p>
+                                <button onclick="system.downloadTemplate()" class="btn btn-info btn-small" style="margin-top: 10px;">
+                                    <i class="fas fa-download"></i> Download Template
+                                </button>
+                            </div>
+                            
+                            <div id="uploadPreview" style="margin-top: 20px; display: none;">
+                                <h5>Upload Preview:</h5>
+                                <div id="previewTable" class="table-responsive" style="max-height: 300px; overflow-y: auto;"></div>
+                                <button id="confirmUpload" class="btn btn-success" style="margin-top: 15px;">
+                                    <i class="fas fa-check"></i> Confirm Upload
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
@@ -1366,10 +1461,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="trialYear">Select Year</label>
-                                    <select id="trialYear">
-                                        <option value="2025">2025</option>
-                                        <option value="2024">2024</option>
-                                    </select>
+                                    <input type="number" id="trialYear" value="2025" min="2020" max="2030">
                                 </div>
                                 <div class="form-group">
                                     <label for="trialStartDate">Start Date</label>
@@ -1419,10 +1511,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="reportYear">Select Year</label>
-                                    <select id="reportYear">
-                                        <option value="2025">2025</option>
-                                        <option value="2024">2024</option>
-                                    </select>
+                                    <input type="number" id="reportYear" value="2025" min="2020" max="2030">
                                 </div>
                                 <div class="form-group">
                                     <button id="generateReport" class="btn btn-primary" style="margin-top: 25px;">
@@ -1559,8 +1648,20 @@
                                     <input type="number" id="lateFeePercentage" min="0" max="50" step="0.5" value="5">
                                 </div>
                                 <div class="form-group">
+                                    <label for="lateFeeFixed">Late Fee Fixed Amount (PKR)</label>
+                                    <input type="number" id="lateFeeFixed" min="0" value="200">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
                                     <label for="gracePeriod">Grace Period (Days)</label>
                                     <input type="number" id="gracePeriod" min="0" max="30" value="7">
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="useBothLateFees"> Use both percentage and fixed late fee
+                                    </label>
                                 </div>
                             </div>
                             
@@ -1617,7 +1718,7 @@
                             </div>
                         </div>
                         
-                        <div class="stat-card" style="cursor: pointer;" onclick="document.getElementById('restoreFile').click()">
+                        <div class="stat-card" style="cursor: pointer;" onclick="system.uploadBackupFile()">
                             <div class="stat-icon" style="background-color: var(--warning-color);">
                                 <i class="fas fa-upload"></i>
                             </div>
@@ -1627,12 +1728,12 @@
                             </div>
                         </div>
                         
-                        <div class="stat-card" style="cursor: pointer;" onclick="system.exportToCSV()">
+                        <div class="stat-card" style="cursor: pointer;" onclick="system.exportToExcel()">
                             <div class="stat-icon" style="background-color: var(--secondary-color);">
-                                <i class="fas fa-file-csv"></i>
+                                <i class="fas fa-file-excel"></i>
                             </div>
                             <div class="stat-info">
-                                <h3>Export CSV</h3>
+                                <h3>Export Excel</h3>
                                 <p>Export to Excel</p>
                             </div>
                         </div>
@@ -1648,7 +1749,7 @@
                         </div>
                     </div>
                     
-                    <input type="file" id="restoreFile" accept=".json,.csv" style="display: none;">
+                    <input type="file" id="backupFileInput" accept=".json" style="display: none;">
                     
                     <div class="table-container" style="margin-top: 20px;">
                         <div class="table-header">
@@ -1765,7 +1866,7 @@
         </div>
     </div>
     
-    <!-- Add User Modal -->
+    <!-- Add/Edit User Modal -->
     <div id="userModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -1798,7 +1899,14 @@
                         <div class="form-group">
                             <label for="userPassword">Password *</label>
                             <input type="password" id="userPassword" required>
+                            <small style="color: var(--gray-color);">Leave blank to keep current password</small>
                         </div>
+                    </div>
+                    
+                    <div class="form-group" id="changePasswordSection" style="display: none;">
+                        <label>
+                            <input type="checkbox" id="changePasswordCheckbox"> Change Password
+                        </label>
                     </div>
                     
                     <button type="submit" class="btn btn-primary btn-block">
@@ -1815,6 +1923,9 @@
         <span id="toastMessage"></span>
     </div>
 
+    <!-- Include SheetJS for Excel processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <script>
         // School Fee Management System
         class FeeManagementSystem {
@@ -1824,6 +1935,9 @@
                 this.settings = this.loadDefaultSettings();
                 this.data = this.loadInitialData();
                 this.editingCell = null;
+                this.monthOrder = [...this.settings.feeMonths];
+                this.currentInvoiceFamilyId = null;
+                this.excelUploadData = null;
                 this.init();
             }
             
@@ -1840,25 +1954,30 @@
                     schoolPhone: "+92 315 7928161",
                     schoolEmail: "info@school.edu",
                     academicYear: "2025-2026",
-                    feeMonths: ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"],
+                    feeMonths: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
                     lateFeePercentage: 5,
+                    lateFeeFixed: 200,
+                    useBothLateFees: false,
                     gracePeriod: 7,
                     currency: "PKR"
                 };
             }
             
             loadInitialData() {
-                // Try to load from localStorage first
                 const saved = localStorage.getItem('feeSystemData');
                 if (saved) {
                     try {
-                        return JSON.parse(saved);
+                        const parsed = JSON.parse(saved);
+                        return parsed.data || this.getDefaultDataStructure();
                     } catch (e) {
                         console.log('Error loading saved data, using default');
                     }
                 }
                 
-                // Default data structure
+                return this.getDefaultDataStructure();
+            }
+            
+            getDefaultDataStructure() {
                 return {
                     families: [
                         { 
@@ -1908,13 +2027,14 @@
                     ],
                     users: [
                         { id: 1, username: "admin", fullName: "Administrator", 
-                          role: "admin", password: "admin123" },
+                          role: "admin", password: "admin123", lastLogin: new Date().toISOString() },
                         { id: 2, username: "teacher", fullName: "Teacher User", 
-                          role: "teacher", password: "teacher123" }
+                          role: "teacher", password: "teacher123", lastLogin: new Date().toISOString() }
                     ],
                     backups: [],
                     lastFamilyId: 3,
-                    lastTransactionId: 2
+                    lastTransactionId: 2,
+                    lastUserId: 2
                 };
             }
             
@@ -1932,7 +2052,6 @@
                         const page = item.getAttribute('data-page');
                         this.switchPage(page);
                         
-                        // Update active nav
                         document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
                         item.classList.add('active');
                     });
@@ -1972,8 +2091,12 @@
                 
                 // Export/Import
                 document.getElementById('exportData').addEventListener('click', () => this.exportData());
-                document.getElementById('importData').addEventListener('click', () => document.getElementById('restoreFile').click());
-                document.getElementById('restoreFile').addEventListener('change', (e) => this.importData(e));
+                document.getElementById('importExcelBtn').addEventListener('click', () => document.getElementById('excelFileInput').click());
+                
+                // Excel upload
+                document.getElementById('excelUploadArea').addEventListener('click', () => document.getElementById('excelFileInput').click());
+                document.getElementById('excelFileInput').addEventListener('change', (e) => this.handleExcelUpload(e));
+                document.getElementById('confirmUpload').addEventListener('click', () => this.confirmExcelUpload());
                 
                 // Modal close buttons
                 document.getElementById('closeInvoiceModal').addEventListener('click', () => this.closeModal('invoiceModal'));
@@ -1995,6 +2118,16 @@
                 document.getElementById('invoiceType').addEventListener('change', () => this.updateInvoicePreview());
                 document.getElementById('selectMonth').addEventListener('change', () => this.updateInvoicePreview());
                 
+                // Change password checkbox
+                document.getElementById('changePasswordCheckbox')?.addEventListener('change', (e) => {
+                    const passwordInput = document.getElementById('userPassword');
+                    passwordInput.required = e.target.checked;
+                    passwordInput.disabled = !e.target.checked;
+                    if (!e.target.checked) {
+                        passwordInput.value = '';
+                    }
+                });
+                
                 // Initialize month sorter
                 this.initMonthSorter();
             }
@@ -2005,7 +2138,6 @@
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
                 
-                // Find user
                 const user = this.data.users.find(u => 
                     u.username === username && 
                     u.password === password
@@ -2015,14 +2147,14 @@
                     this.currentUser = user;
                     this.isAdmin = user.role === 'admin';
                     
-                    // Show main app
+                    // Update last login
+                    user.lastLogin = new Date().toISOString();
+                    this.saveToLocalStorage();
+                    
                     document.getElementById('loginPage').style.display = 'none';
                     document.getElementById('appContainer').style.display = 'block';
                     
-                    // Update UI
                     this.updateUI();
-                    
-                    // Load families page
                     this.switchPage('families');
                     this.loadFamiliesTable();
                     
@@ -2036,26 +2168,20 @@
                 this.currentUser = null;
                 this.isAdmin = false;
                 
-                // Show login page
                 document.getElementById('loginPage').style.display = 'flex';
                 document.getElementById('appContainer').style.display = 'none';
-                
-                // Reset login form
                 document.getElementById('loginForm').reset();
                 
                 this.showToast('Logged out successfully');
             }
             
             switchPage(page) {
-                // Hide all pages
                 document.querySelectorAll('.page').forEach(p => {
                     p.style.display = 'none';
                 });
                 
-                // Show selected page
                 document.getElementById(`${page}Page`).style.display = 'block';
                 
-                // Load page data
                 switch(page) {
                     case 'families':
                         this.loadFamiliesTable();
@@ -2079,10 +2205,8 @@
             }
             
             switchTab(tabId) {
-                // Get current page
                 const page = document.querySelector('.page.active').id.replace('Page', '');
                 
-                // Update active tab
                 document.querySelectorAll(`#${page}Page .tab`).forEach(tab => {
                     tab.classList.remove('active');
                     if (tab.getAttribute('data-tab') === tabId) {
@@ -2090,7 +2214,6 @@
                     }
                 });
                 
-                // Show active tab content
                 document.querySelectorAll(`#${page}Page .tab-content`).forEach(content => {
                     content.classList.remove('active');
                     if (content.id === `${tabId}Tab`) {
@@ -2098,16 +2221,13 @@
                     }
                 });
                 
-                // Load tab data
                 if (page === 'families') {
                     if (tabId === 'feeRegister') {
                         this.loadFamiliesTable();
                     } else if (tabId === 'paymentHistory') {
                         this.loadPaymentHistory();
-                    }
-                } else if (page === 'finance') {
-                    if (tabId === 'transactions') {
-                        this.loadTransactions();
+                    } else if (tabId === 'bulkUpload') {
+                        this.resetExcelUpload();
                     }
                 }
             }
@@ -2115,21 +2235,16 @@
             updateUI() {
                 if (!this.currentUser) return;
                 
-                // Update user info
                 document.getElementById('userNameDisplay').textContent = this.currentUser.fullName;
                 document.getElementById('userRoleDisplay').textContent = this.currentUser.role;
                 document.getElementById('userRoleDisplay').className = `user-role ${this.currentUser.role}`;
-                
-                // Update school name
                 document.getElementById('schoolNameDisplay').textContent = this.settings.schoolName;
                 
-                // Show/hide admin-only elements
                 const adminOnly = document.querySelectorAll('.admin-only');
                 adminOnly.forEach(el => {
                     el.style.display = this.isAdmin ? '' : 'none';
                 });
                 
-                // Disable edit/delete for teachers
                 if (!this.isAdmin) {
                     const editButtons = document.querySelectorAll('.action-btn.edit, .action-btn.delete');
                     editButtons.forEach(btn => btn.style.display = 'none');
@@ -2154,14 +2269,10 @@
                     return;
                 }
                 
-                // Add new family
                 familyData.id = ++this.data.lastFamilyId;
                 this.data.families.push(familyData);
-                
-                // Save data
                 this.saveToLocalStorage();
                 
-                // Clear form
                 document.getElementById('quickFNo').value = '';
                 document.getElementById('quickFatherName').value = '';
                 document.getElementById('quickStudents').value = '';
@@ -2169,9 +2280,7 @@
                 document.getElementById('quickContact').value = '';
                 document.getElementById('quickMonthlyFee').value = '';
                 
-                // Refresh table
                 this.loadFamiliesTable();
-                
                 this.showToast('Family added successfully');
             }
             
@@ -2179,11 +2288,9 @@
                 const thead = document.getElementById('familyTableHeader');
                 const tbody = document.getElementById('familiesTableBody');
                 
-                // Clear existing content
                 thead.innerHTML = '';
                 tbody.innerHTML = '';
                 
-                // Create header
                 let headerHTML = `
                     <th>F.No.</th>
                     <th>Father Name</th>
@@ -2192,9 +2299,12 @@
                     <th>Contact</th>
                 `;
                 
-                // Add month columns
-                this.settings.feeMonths.forEach(month => {
-                    headerHTML += `<th class="month-cell">${month}</th>`;
+                // Use current month order for display
+                this.monthOrder.forEach(month => {
+                    headerHTML += `<th class="month-header" data-month="${month}">
+                        ${month}
+                        <i class="fas fa-grip-vertical"></i>
+                    </th>`;
                 });
                 
                 headerHTML += `
@@ -2204,7 +2314,9 @@
                 
                 thead.innerHTML = headerHTML;
                 
-                // Create rows
+                // Add drag and drop for month headers
+                this.setupMonthHeaderDragDrop();
+                
                 this.data.families.forEach(family => {
                     const row = document.createElement('tr');
                     
@@ -2216,8 +2328,8 @@
                         <td class="editable-cell" data-family-id="${family.id}" data-field="contact">${family.contact}</td>
                     `;
                     
-                    // Add month cells
-                    this.settings.feeMonths.forEach(month => {
+                    // Add month cells in current order
+                    this.monthOrder.forEach(month => {
                         const payment = family.payments?.[month];
                         let amount = payment?.amount || '';
                         let cellClass = amount ? (amount >= family.monthlyFee ? 'paid' : 'partial') : 'pending';
@@ -2256,23 +2368,98 @@
                     tbody.appendChild(row);
                 });
                 
-                // Add double-click event listeners for editable cells
                 this.setupEditableCells();
             }
             
-            setupEditableCells() {
-                const cells = document.querySelectorAll('.editable-cell');
+            setupMonthHeaderDragDrop() {
+                const headers = document.querySelectorAll('.month-header');
+                let draggedHeader = null;
                 
-                cells.forEach(cell => {
-                    // Remove existing event listeners
-                    cell.replaceWith(cell.cloneNode(true));
+                headers.forEach(header => {
+                    header.draggable = true;
+                    
+                    header.addEventListener('dragstart', (e) => {
+                        draggedHeader = header;
+                        e.dataTransfer.setData('text/plain', header.getAttribute('data-month'));
+                        header.classList.add('dragging');
+                    });
+                    
+                    header.addEventListener('dragend', () => {
+                        header.classList.remove('dragging');
+                        draggedHeader = null;
+                        this.updateMonthOrderFromTable();
+                    });
+                    
+                    header.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                    });
+                    
+                    header.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        if (draggedHeader && draggedHeader !== header) {
+                            const allHeaders = Array.from(document.querySelectorAll('.month-header'));
+                            const draggedIndex = allHeaders.indexOf(draggedHeader);
+                            const dropIndex = allHeaders.indexOf(header);
+                            
+                            if (draggedIndex < dropIndex) {
+                                header.parentNode.insertBefore(draggedHeader, header.nextSibling);
+                            } else {
+                                header.parentNode.insertBefore(draggedHeader, header);
+                            }
+                            
+                            // Also reorder month cells in all rows
+                            this.reorderMonthCells();
+                        }
+                    });
                 });
+            }
+            
+            updateMonthOrderFromTable() {
+                const headers = document.querySelectorAll('.month-header');
+                this.monthOrder = Array.from(headers).map(h => h.getAttribute('data-month'));
+                this.saveToLocalStorage();
+            }
+            
+            reorderMonthCells() {
+                const rows = document.querySelectorAll('#familiesTableBody tr');
+                const headers = document.querySelectorAll('.month-header');
+                const monthOrder = Array.from(headers).map(h => h.getAttribute('data-month'));
                 
-                // Add new event listeners
+                rows.forEach(row => {
+                    const monthCells = Array.from(row.querySelectorAll('.month-cell'));
+                    const newRow = [];
+                    
+                    monthOrder.forEach(month => {
+                        const cell = monthCells.find(c => c.getAttribute('data-month') === month);
+                        if (cell) {
+                            newRow.push(cell);
+                        }
+                    });
+                    
+                    // Get the position after contact column
+                    const contactCell = row.querySelector('td:nth-child(5)');
+                    let currentCell = contactCell.nextElementSibling;
+                    
+                    // Remove existing month cells
+                    for (let i = 0; i < monthCells.length; i++) {
+                        if (currentCell && currentCell.classList.contains('month-cell')) {
+                            const next = currentCell.nextElementSibling;
+                            currentCell.remove();
+                            currentCell = next;
+                        }
+                    }
+                    
+                    // Insert reordered cells
+                    newRow.forEach(cell => {
+                        contactCell.parentNode.insertBefore(cell, contactCell.nextElementSibling);
+                    });
+                });
+            }
+            
+            setupEditableCells() {
                 document.querySelectorAll('.editable-cell').forEach(cell => {
                     cell.addEventListener('dblclick', (e) => {
                         if (cell.classList.contains('month-cell')) {
-                            // Handle month cell separately
                             const familyId = cell.getAttribute('data-family-id');
                             const month = cell.getAttribute('data-month');
                             this.showPaymentModal(familyId, month);
@@ -2290,10 +2477,8 @@
                 const field = cell.getAttribute('data-field');
                 const originalValue = cell.textContent.trim();
                 
-                // Remove PKR prefix if present
                 let value = originalValue.replace('PKR ', '').replace(/,/g, '').trim();
                 
-                // Create input based on field type
                 let input;
                 if (field === 'monthlyFee' || field === 'fNo') {
                     input = document.createElement('input');
@@ -2304,7 +2489,6 @@
                         input.step = 100;
                     }
                 } else if (field === 'payment') {
-                    // Don't edit payment directly, use payment modal
                     return;
                 } else {
                     input = document.createElement('input');
@@ -2312,7 +2496,6 @@
                     input.value = value || '';
                 }
                 
-                // Save editing state
                 this.editingCell = {
                     element: cell,
                     familyId: familyId,
@@ -2320,16 +2503,13 @@
                     originalValue: originalValue
                 };
                 
-                // Replace cell content with input
                 cell.classList.add('editing');
                 cell.innerHTML = '';
                 cell.appendChild(input);
                 
-                // Focus and select all text
                 input.focus();
                 input.select();
                 
-                // Handle input events
                 input.addEventListener('blur', () => this.finishEditingCell());
                 input.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') {
@@ -2347,11 +2527,9 @@
                 const input = element.querySelector('input');
                 const newValue = input.value.trim();
                 
-                // Find family
                 const family = this.data.families.find(f => f.id === familyId);
                 if (!family) return;
                 
-                // Validate and save
                 if (newValue !== originalValue && newValue !== '') {
                     if (field === 'fNo') {
                         family.fNo = parseInt(newValue) || 0;
@@ -2367,10 +2545,8 @@
                         family.contact = newValue;
                     }
                     
-                    // Save data
                     this.saveToLocalStorage();
                     
-                    // Update cell display
                     if (field === 'monthlyFee') {
                         element.textContent = 'PKR ' + (family.monthlyFee || 0).toLocaleString();
                     } else {
@@ -2379,15 +2555,11 @@
                     
                     this.showToast('Updated successfully');
                 } else {
-                    // Restore original value
                     element.textContent = originalValue;
                 }
                 
-                // Clean up
                 element.classList.remove('editing');
                 this.editingCell = null;
-                
-                // Refresh table to update month cell status
                 this.loadFamiliesTable();
             }
             
@@ -2425,19 +2597,12 @@
                     payments: {}
                 };
                 
-                // Add new family
                 familyData.id = ++this.data.lastFamilyId;
                 this.data.families.push(familyData);
-                
-                // Save data
                 this.saveToLocalStorage();
                 
-                // Reset form
                 e.target.reset();
-                
-                // Switch to fee register tab
                 this.switchTab('feeRegister');
-                
                 this.showToast('Family added successfully');
             }
             
@@ -2445,7 +2610,6 @@
                 const family = this.data.families.find(f => f.id === familyId);
                 if (!family) return;
                 
-                // Fill form with family data
                 document.getElementById('newFNo').value = family.fNo;
                 document.getElementById('newFatherName').value = family.fatherName;
                 document.getElementById('newStudents').value = family.students;
@@ -2455,17 +2619,13 @@
                 document.getElementById('newAddress').value = family.address || '';
                 document.getElementById('newEmail').value = family.email || '';
                 
-                // Switch to add family tab
                 this.switchTab('addFamily');
                 
-                // Change form to update mode
                 const form = document.getElementById('familyForm');
                 const submitBtn = form.querySelector('button[type="submit"]');
                 
-                // Change button text
                 submitBtn.innerHTML = '<i class="fas fa-save"></i> Update Family';
                 
-                // Remove old event listener and add new one
                 form.onsubmit = (e) => {
                     e.preventDefault();
                     this.updateFamily(familyId);
@@ -2476,7 +2636,6 @@
                 const family = this.data.families.find(f => f.id === familyId);
                 if (!family) return;
                 
-                // Update family data
                 family.fNo = parseInt(document.getElementById('newFNo').value) || 0;
                 family.fatherName = document.getElementById('newFatherName').value;
                 family.students = document.getElementById('newStudents').value;
@@ -2486,20 +2645,15 @@
                 family.address = document.getElementById('newAddress').value;
                 family.email = document.getElementById('newEmail').value;
                 
-                // Save data
                 this.saveToLocalStorage();
                 
-                // Reset form and button
                 document.getElementById('familyForm').reset();
                 const submitBtn = document.querySelector('#familyForm button[type="submit"]');
                 submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Family';
                 
-                // Restore original event listener
                 document.getElementById('familyForm').onsubmit = (e) => this.saveFamily(e);
                 
-                // Switch back to fee register
                 this.switchTab('feeRegister');
-                
                 this.showToast('Family updated successfully');
             }
             
@@ -2521,11 +2675,9 @@
                 const family = this.data.families.find(f => f.id === familyId);
                 if (!family) return;
                 
-                // Set modal data
                 document.getElementById('paymentFamilyId').value = familyId;
                 document.getElementById('paymentMonth').value = month;
                 
-                // Set current payment if exists
                 const payment = family.payments?.[month];
                 if (payment) {
                     document.getElementById('paymentAmount').value = payment.amount || '';
@@ -2534,7 +2686,6 @@
                     document.getElementById('paymentReference').value = payment.reference || '';
                     document.getElementById('paymentNote').value = payment.note || '';
                 } else {
-                    // Set defaults
                     document.getElementById('paymentAmount').value = family.monthlyFee || '';
                     document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
                     document.getElementById('paymentMethod').value = 'Cash';
@@ -2542,7 +2693,6 @@
                     document.getElementById('paymentNote').value = '';
                 }
                 
-                // Show modal
                 this.showModal('paymentModal');
             }
             
@@ -2560,10 +2710,8 @@
                 const family = this.data.families.find(f => f.id === familyId);
                 if (!family) return;
                 
-                // Initialize payments object if not exists
                 if (!family.payments) family.payments = {};
                 
-                // Save payment
                 family.payments[month] = {
                     amount: amount,
                     date: date,
@@ -2572,7 +2720,6 @@
                     note: note
                 };
                 
-                // Also add to transactions
                 const transaction = {
                     id: ++this.data.lastTransactionId,
                     type: 'income',
@@ -2583,13 +2730,8 @@
                 };
                 this.data.transactions.push(transaction);
                 
-                // Save data
                 this.saveToLocalStorage();
-                
-                // Close modal
                 this.closeModal('paymentModal');
-                
-                // Refresh tables
                 this.loadFamiliesTable();
                 this.loadPaymentHistory();
                 
@@ -2599,17 +2741,24 @@
             showInvoiceModal(familyId) {
                 this.currentInvoiceFamilyId = familyId;
                 
-                // Populate month dropdown
                 const monthSelect = document.getElementById('selectMonth');
                 monthSelect.innerHTML = '';
-                this.settings.feeMonths.forEach(month => {
+                this.monthOrder.forEach(month => {
                     const option = document.createElement('option');
                     option.value = month;
                     option.textContent = month;
                     monthSelect.appendChild(option);
                 });
                 
-                // Show modal
+                // Set default to current month
+                const currentMonth = new Date().toLocaleString('default', { month: 'short' });
+                const currentMonthIndex = this.monthOrder.findIndex(m => m === currentMonth);
+                if (currentMonthIndex !== -1) {
+                    monthSelect.value = this.monthOrder[currentMonthIndex];
+                } else {
+                    monthSelect.value = this.monthOrder[this.monthOrder.length - 1];
+                }
+                
                 this.showModal('invoiceModal');
                 this.updateInvoicePreview();
             }
@@ -2627,7 +2776,7 @@
                 if (invoiceType === 'single') {
                     invoiceHTML = this.generateSingleInvoice(family);
                 } else if (invoiceType === 'triple') {
-                    invoiceHTML = this.generateTripleInvoice(family);
+                    invoiceHTML = this.generateTripleInvoice(family, selectedMonth);
                 } else if (invoiceType === 'monthly') {
                     invoiceHTML = this.generateMonthlyInvoice(family, selectedMonth);
                 }
@@ -2636,12 +2785,11 @@
             }
             
             generateSingleInvoice(family) {
-                // Calculate totals
                 let totalDue = 0;
                 let totalPaid = 0;
                 let paymentRows = '';
                 
-                this.settings.feeMonths.forEach(month => {
+                this.monthOrder.forEach(month => {
                     const monthlyFee = family.monthlyFee || 0;
                     totalDue += monthlyFee;
                     
@@ -2666,7 +2814,16 @@
                 const invoiceNumber = `INV-${family.id}-${Date.now().toString().slice(-6)}`;
                 const invoiceDate = new Date().toISOString().split('T')[0];
                 
-                // Generate invoice HTML
+                // Calculate late fee
+                let lateFee = 0;
+                if (balanceDue > 0) {
+                    if (this.settings.useBothLateFees) {
+                        lateFee = (balanceDue * this.settings.lateFeePercentage / 100) + this.settings.lateFeeFixed;
+                    } else {
+                        lateFee = balanceDue * this.settings.lateFeePercentage / 100;
+                    }
+                }
+                
                 return `
                     <div class="invoice">
                         <div class="invoice-header">
@@ -2718,13 +2875,13 @@
                             </div>
                             ${balanceDue > 0 ? `
                             <div class="total-row">
-                                <span>Late Fee (${this.settings.lateFeePercentage}%):</span>
-                                <span>PKR ${(balanceDue * this.settings.lateFeePercentage / 100).toLocaleString()}</span>
+                                <span>Late Fee:</span>
+                                <span>PKR ${lateFee.toLocaleString()}</span>
                             </div>
                             ` : ''}
                             <div class="total-row grand-total">
                                 <span><strong>Total Balance Due:</strong></span>
-                                <span><strong>PKR ${balanceDue.toLocaleString()}</strong></span>
+                                <span><strong>PKR ${(balanceDue + lateFee).toLocaleString()}</strong></span>
                             </div>
                         </div>
                         
@@ -2736,18 +2893,33 @@
                 `;
             }
             
-            generateTripleInvoice(family) {
-                // Calculate arrears
+            generateTripleInvoice(family, selectedMonth) {
+                // Calculate arrears up to selected month
                 let arrears = 0;
-                this.settings.feeMonths.forEach(month => {
-                    const monthlyFee = family.monthlyFee || 0;
-                    const payment = family.payments?.[month];
-                    const paid = payment?.amount || 0;
-                    arrears += (monthlyFee - paid);
-                });
+                const selectedMonthIndex = this.monthOrder.indexOf(selectedMonth);
+                
+                if (selectedMonthIndex !== -1) {
+                    for (let i = 0; i <= selectedMonthIndex; i++) {
+                        const month = this.monthOrder[i];
+                        const monthlyFee = family.monthlyFee || 0;
+                        const payment = family.payments?.[month];
+                        const paid = payment?.amount || 0;
+                        arrears += (monthlyFee - paid);
+                    }
+                }
                 
                 const invoiceNumber = `INV-${family.id}-${Date.now().toString().slice(-6)}`;
                 const invoiceDate = new Date().toISOString().split('T')[0];
+                
+                // Calculate late fee for arrears
+                let lateFee = 0;
+                if (arrears > 0) {
+                    if (this.settings.useBothLateFees) {
+                        lateFee = (arrears * this.settings.lateFeePercentage / 100) + this.settings.lateFeeFixed;
+                    } else {
+                        lateFee = arrears * this.settings.lateFeePercentage / 100;
+                    }
+                }
                 
                 const copies = ['STUDENT COPY', 'BANK COPY', 'SCHOOL COPY'];
                 
@@ -2765,7 +2937,7 @@
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="font-size: 18px; font-weight: bold;">INVOICE</div>
-                                    <div><strong>No:</strong> ${invoiceNumber}</div>
+                                    <div><strong>Month:</strong> ${selectedMonth}</div>
                                     <div><strong>Date:</strong> ${this.formatDate(invoiceDate)}</div>
                                 </div>
                             </div>
@@ -2774,6 +2946,7 @@
                                 <div><strong>Bill To:</strong> ${family.fatherName}</div>
                                 <div><strong>Students:</strong> ${family.students}</div>
                                 <div><strong>Classes:</strong> ${family.classes}</div>
+                                <div><strong>Contact:</strong> ${family.contact}</div>
                             </div>
                             
                             <table style="width: 100%; border-collapse: collapse;">
@@ -2785,7 +2958,7 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td style="padding: 8px; border-bottom: 1px solid #eee;">Monthly Fee (${this.settings.feeMonths[this.settings.feeMonths.length-1]})</td>
+                                        <td style="padding: 8px; border-bottom: 1px solid #eee;">Monthly Fee (${selectedMonth})</td>
                                         <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">PKR ${family.monthlyFee.toLocaleString()}</td>
                                     </tr>
                                     ${arrears > 0 ? `
@@ -2794,9 +2967,15 @@
                                         <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">PKR ${arrears.toLocaleString()}</td>
                                     </tr>
                                     ` : ''}
+                                    ${lateFee > 0 ? `
+                                    <tr>
+                                        <td style="padding: 8px; border-bottom: 1px solid #eee;">Late Fee</td>
+                                        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">PKR ${lateFee.toLocaleString()}</td>
+                                    </tr>
+                                    ` : ''}
                                     <tr style="font-weight: bold;">
                                         <td style="padding: 8px;">Total Amount Due</td>
-                                        <td style="padding: 8px; text-align: right;">PKR ${(family.monthlyFee + arrears).toLocaleString()}</td>
+                                        <td style="padding: 8px; text-align: right;">PKR ${(family.monthlyFee + arrears + lateFee).toLocaleString()}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2815,7 +2994,7 @@
                             </div>
                             
                             <div style="margin-top: 20px; font-size: 11px; text-align: center; color: #666;">
-                                <p>Please make payment within 7 days to avoid late fee</p>
+                                <p>Please make payment within ${this.settings.gracePeriod} days to avoid late fee</p>
                             </div>
                         </div>
                     `;
@@ -2828,22 +3007,30 @@
             generateMonthlyInvoice(family, selectedMonth) {
                 // Calculate arrears up to selected month
                 let arrears = 0;
-                let currentMonthIndex = this.settings.feeMonths.indexOf(selectedMonth);
+                const selectedMonthIndex = this.monthOrder.indexOf(selectedMonth);
                 
-                if (currentMonthIndex === -1) {
-                    currentMonthIndex = this.settings.feeMonths.length - 1;
-                }
-                
-                for (let i = 0; i <= currentMonthIndex; i++) {
-                    const month = this.settings.feeMonths[i];
-                    const monthlyFee = family.monthlyFee || 0;
-                    const payment = family.payments?.[month];
-                    const paid = payment?.amount || 0;
-                    arrears += (monthlyFee - paid);
+                if (selectedMonthIndex !== -1) {
+                    for (let i = 0; i <= selectedMonthIndex; i++) {
+                        const month = this.monthOrder[i];
+                        const monthlyFee = family.monthlyFee || 0;
+                        const payment = family.payments?.[month];
+                        const paid = payment?.amount || 0;
+                        arrears += (monthlyFee - paid);
+                    }
                 }
                 
                 const invoiceNumber = `INV-${family.id}-${Date.now().toString().slice(-6)}`;
                 const invoiceDate = new Date().toISOString().split('T')[0];
+                
+                // Calculate late fee for arrears
+                let lateFee = 0;
+                if (arrears > 0) {
+                    if (this.settings.useBothLateFees) {
+                        lateFee = (arrears * this.settings.lateFeePercentage / 100) + this.settings.lateFeeFixed;
+                    } else {
+                        lateFee = arrears * this.settings.lateFeePercentage / 100;
+                    }
+                }
                 
                 return `
                     <div class="invoice">
@@ -2883,15 +3070,15 @@
                                     <td style="padding: 10px; border-bottom: 1px solid #eee;">Previous Arrears</td>
                                     <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">PKR ${arrears.toLocaleString()}</td>
                                 </tr>
-                                ${arrears > 0 ? `
+                                ${lateFee > 0 ? `
                                 <tr>
-                                    <td style="padding: 10px; border-bottom: 1px solid #eee;">Late Fee (${this.settings.lateFeePercentage}%)</td>
-                                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">PKR ${(arrears * this.settings.lateFeePercentage / 100).toLocaleString()}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee;">Late Fee</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">PKR ${lateFee.toLocaleString()}</td>
                                 </tr>
                                 ` : ''}
                                 <tr style="font-weight: bold; background-color: #f8f9fa;">
                                     <td style="padding: 10px;">TOTAL AMOUNT DUE</td>
-                                    <td style="padding: 10px; text-align: right;">PKR ${(family.monthlyFee + arrears + (arrears * this.settings.lateFeePercentage / 100)).toLocaleString()}</td>
+                                    <td style="padding: 10px; text-align: right;">PKR ${(family.monthlyFee + arrears + lateFee).toLocaleString()}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -2900,8 +3087,8 @@
                             <p><strong>Payment Summary:</strong></p>
                             <p>Current Month Fee: PKR ${family.monthlyFee.toLocaleString()}</p>
                             <p>Previous Arrears: PKR ${arrears.toLocaleString()}</p>
-                            <p>Late Fee: PKR ${(arrears * this.settings.lateFeePercentage / 100).toLocaleString()}</p>
-                            <p><strong>Total Due: PKR ${(family.monthlyFee + arrears + (arrears * this.settings.lateFeePercentage / 100)).toLocaleString()}</strong></p>
+                            <p>Late Fee: PKR ${lateFee.toLocaleString()}</p>
+                            <p><strong>Total Due: PKR ${(family.monthlyFee + arrears + lateFee).toLocaleString()}</strong></p>
                         </div>
                         
                         <div style="margin-top: 20px; text-align: center; font-size: 12px; color: #666;">
@@ -2915,7 +3102,6 @@
                 const tbody = document.getElementById('paymentsTableBody');
                 tbody.innerHTML = '';
                 
-                // Collect all payments
                 const allPayments = [];
                 
                 this.data.families.forEach(family => {
@@ -2933,10 +3119,8 @@
                     }
                 });
                 
-                // Sort by date
                 allPayments.sort((a, b) => new Date(b.date) - new Date(a.date));
                 
-                // Display
                 allPayments.forEach(payment => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
@@ -2952,10 +3136,8 @@
             }
             
             loadDashboard() {
-                // Update stats
                 document.getElementById('totalFamiliesCount').textContent = this.data.families.length;
                 
-                // Calculate total students
                 let totalStudents = 0;
                 this.data.families.forEach(family => {
                     const students = family.students.split(',').length;
@@ -2963,7 +3145,6 @@
                 });
                 document.getElementById('totalStudents').textContent = totalStudents;
                 
-                // Calculate income and expenses
                 let totalIncome = 0;
                 let totalExpenses = 0;
                 
@@ -2978,7 +3159,6 @@
                 document.getElementById('totalIncome').textContent = `PKR ${totalIncome.toLocaleString()}`;
                 document.getElementById('totalExpenses').textContent = `PKR ${totalExpenses.toLocaleString()}`;
                 
-                // Load recent payments
                 this.loadRecentPayments();
             }
             
@@ -2986,7 +3166,6 @@
                 const tbody = document.getElementById('recentPaymentsBody');
                 tbody.innerHTML = '';
                 
-                // Collect recent payments
                 const allPayments = [];
                 
                 this.data.families.forEach(family => {
@@ -3003,11 +3182,9 @@
                     }
                 });
                 
-                // Sort by date and take last 10
                 allPayments.sort((a, b) => new Date(b.date) - new Date(a.date));
                 const recent = allPayments.slice(0, 10);
                 
-                // Display
                 recent.forEach(payment => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
@@ -3030,12 +3207,10 @@
                 const tbody = document.getElementById('transactionsTableBody');
                 tbody.innerHTML = '';
                 
-                // Sort by date
                 const sortedTransactions = [...this.data.transactions].sort((a, b) => 
                     new Date(b.date) - new Date(a.date)
                 );
                 
-                // Display
                 sortedTransactions.forEach(trans => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
@@ -3043,7 +3218,7 @@
                         <td><span style="color: ${trans.type === 'income' ? 'green' : 'red'};">
                             ${trans.type === 'income' ? 'Income' : 'Expense'}
                         </span></td>
-                        <td>${trans.category}</td>
+                        <td>${this.formatCategory(trans.category)}</td>
                         <td>${trans.description || '-'}</td>
                         <td>PKR ${trans.amount.toLocaleString()}</td>
                         <td>
@@ -3068,19 +3243,13 @@
                     description: document.getElementById('transDescription').value
                 };
                 
-                // Add transaction
                 this.data.transactions.push(transaction);
-                
-                // Save data
                 this.saveToLocalStorage();
                 
-                // Reset form
                 e.target.reset();
                 document.getElementById('transDate').value = new Date().toISOString().split('T')[0];
                 
-                // Refresh table
                 this.loadTransactions();
-                
                 this.showToast('Transaction saved successfully');
             }
             
@@ -3097,17 +3266,15 @@
             }
             
             populateTrialBalanceFilters() {
-                // Populate month dropdown
                 const monthSelect = document.getElementById('trialMonth');
                 monthSelect.innerHTML = '<option value="all">All Months</option>';
-                this.settings.feeMonths.forEach(month => {
+                this.monthOrder.forEach(month => {
                     const option = document.createElement('option');
                     option.value = month;
                     option.textContent = month;
                     monthSelect.appendChild(option);
                 });
                 
-                // Set default dates
                 const today = new Date();
                 const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
                 document.getElementById('trialStartDate').value = firstDay.toISOString().split('T')[0];
@@ -3116,27 +3283,35 @@
             
             generateTrialBalance() {
                 const month = document.getElementById('trialMonth').value;
-                const year = document.getElementById('trialYear').value;
+                const year = parseInt(document.getElementById('trialYear').value);
                 const startDate = document.getElementById('trialStartDate').value;
                 const endDate = document.getElementById('trialEndDate').value;
                 
                 // Filter transactions by date range
                 let filteredTransactions = this.data.transactions.filter(trans => {
                     const transDate = new Date(trans.date);
+                    const transYear = transDate.getFullYear();
+                    
+                    // Filter by year
+                    if (transYear !== year) return false;
+                    
+                    // Filter by date range if provided
                     if (startDate && endDate) {
                         return transDate >= new Date(startDate) && transDate <= new Date(endDate);
                     }
+                    
                     return true;
                 });
                 
                 // Filter by month if specified
                 if (month !== 'all') {
-                    // This is simplified - in real implementation, you'd need month mapping
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
                     filteredTransactions = filteredTransactions.filter(trans => {
-                        const transMonth = new Date(trans.date).getMonth();
-                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        return monthNames[transMonth] === month;
+                        const transDate = new Date(trans.date);
+                        const transMonth = monthNames[transDate.getMonth()];
+                        return transMonth === month;
                     });
                 }
                 
@@ -3162,6 +3337,7 @@
                     <div class="trial-balance">
                         <h4 style="margin-top: 20px;">Trial Balance Report</h4>
                         <p>Period: ${startDate ? this.formatDate(startDate) : 'Start'} to ${endDate ? this.formatDate(endDate) : 'End'}</p>
+                        <p>Year: ${year} ${month !== 'all' ? `| Month: ${month}` : ''}</p>
                         
                         <div class="section-title">Income</div>
                         <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
@@ -3256,17 +3432,15 @@
             }
             
             loadReports() {
-                // Populate month dropdown
                 const monthSelect = document.getElementById('reportMonth');
                 monthSelect.innerHTML = '<option value="all">All Months</option>';
-                this.settings.feeMonths.forEach(month => {
+                this.monthOrder.forEach(month => {
                     const option = document.createElement('option');
                     option.value = month;
                     option.textContent = month;
                     monthSelect.appendChild(option);
                 });
                 
-                // Populate family dropdown
                 const familySelect = document.getElementById('familySelect');
                 familySelect.innerHTML = '<option value="">Select a family</option>';
                 this.data.families.forEach(family => {
@@ -3276,7 +3450,6 @@
                     familySelect.appendChild(option);
                 });
                 
-                // Generate monthly report
                 this.generateMonthlyReport();
             }
             
@@ -3284,7 +3457,7 @@
                 const tbody = document.getElementById('monthlyReportBody');
                 tbody.innerHTML = '';
                 
-                this.settings.feeMonths.forEach(month => {
+                this.monthOrder.forEach(month => {
                     let totalFamilies = 0;
                     let totalFee = 0;
                     let collected = 0;
@@ -3317,28 +3490,29 @@
             
             generateReport() {
                 const month = document.getElementById('reportMonth').value;
-                const year = document.getElementById('reportYear').value;
+                const year = parseInt(document.getElementById('reportYear').value);
                 
                 let filteredPayments = [];
                 
-                // Collect payments based on filter
                 this.data.families.forEach(family => {
                     if (family.payments) {
                         Object.entries(family.payments).forEach(([paymentMonth, payment]) => {
                             if (month === 'all' || paymentMonth === month) {
-                                filteredPayments.push({
-                                    family: family.fatherName,
-                                    month: paymentMonth,
-                                    amount: payment.amount,
-                                    date: payment.date,
-                                    method: payment.method
-                                });
+                                const paymentYear = new Date(payment.date).getFullYear();
+                                if (paymentYear === year) {
+                                    filteredPayments.push({
+                                        family: family.fatherName,
+                                        month: paymentMonth,
+                                        amount: payment.amount,
+                                        date: payment.date,
+                                        method: payment.method
+                                    });
+                                }
                             }
                         });
                     }
                 });
                 
-                // Generate report HTML
                 let reportHTML = `
                     <h4 style="margin-top: 20px;">Income Report</h4>
                     <p>${month === 'all' ? 'All Months' : month} ${year}</p>
@@ -3397,7 +3571,6 @@
                 const family = this.data.families.find(f => f.id === familyId);
                 if (!family) return;
                 
-                // Generate family report HTML
                 let reportHTML = `
                     <h4 style="margin-top: 20px;">Family Payment Report</h4>
                     <p><strong>Family:</strong> ${family.fatherName} (F.No. ${family.fNo})</p>
@@ -3422,7 +3595,7 @@
                 let totalDue = 0;
                 let totalPaid = 0;
                 
-                this.settings.feeMonths.forEach(month => {
+                this.monthOrder.forEach(month => {
                     const monthlyFee = family.monthlyFee || 0;
                     totalDue += monthlyFee;
                     
@@ -3473,18 +3646,17 @@
             }
             
             loadSettings() {
-                // Load school settings
                 document.getElementById('schoolName').value = this.settings.schoolName;
                 document.getElementById('schoolPhone').value = this.settings.schoolPhone;
                 document.getElementById('schoolAddress').value = this.settings.schoolAddress || '';
                 document.getElementById('schoolEmail').value = this.settings.schoolEmail || '';
                 document.getElementById('academicYear').value = this.settings.academicYear;
                 
-                // Load fee settings
                 document.getElementById('lateFeePercentage').value = this.settings.lateFeePercentage;
+                document.getElementById('lateFeeFixed').value = this.settings.lateFeeFixed;
                 document.getElementById('gracePeriod').value = this.settings.gracePeriod;
+                document.getElementById('useBothLateFees').checked = this.settings.useBothLateFees;
                 
-                // Load users table
                 this.loadUsersTable();
             }
             
@@ -3517,7 +3689,6 @@
                         <i class="fas fa-grip-vertical"></i>
                     `;
                     
-                    // Drag and drop events
                     monthItem.addEventListener('dragstart', (e) => {
                         e.dataTransfer.setData('text/plain', month);
                         monthItem.classList.add('dragging');
@@ -3531,7 +3702,6 @@
                     sorter.appendChild(monthItem);
                 });
                 
-                // Allow dropping
                 sorter.addEventListener('dragover', (e) => {
                     e.preventDefault();
                     const draggingItem = document.querySelector('.month-item.dragging');
@@ -3549,15 +3719,17 @@
                 const monthItems = document.querySelectorAll('#monthSorter .month-item');
                 const months = Array.from(monthItems).map(item => item.getAttribute('data-month'));
                 this.settings.feeMonths = months;
+                this.monthOrder = [...months];
                 this.saveToLocalStorage();
                 
-                // Refresh families table
                 this.loadFamiliesTable();
             }
             
             saveFeeSettings() {
                 this.settings.lateFeePercentage = parseFloat(document.getElementById('lateFeePercentage').value) || 0;
+                this.settings.lateFeeFixed = parseFloat(document.getElementById('lateFeeFixed').value) || 0;
                 this.settings.gracePeriod = parseInt(document.getElementById('gracePeriod').value) || 0;
+                this.settings.useBothLateFees = document.getElementById('useBothLateFees').checked;
                 
                 this.saveToLocalStorage();
                 this.showToast('Fee settings saved');
@@ -3573,14 +3745,14 @@
                         <td>${user.username}</td>
                         <td>${user.fullName}</td>
                         <td>${user.role}</td>
-                        <td>Today</td>
+                        <td>${user.lastLogin ? this.formatDate(user.lastLogin) : 'Never'}</td>
                         <td>
                             <button class="action-btn edit" onclick="system.showUserModal(${user.id})">
-                                <i class="fas fa-edit"></i>
+                                <i class="fas fa-edit"></i> Edit
                             </button>
                             ${user.username !== 'admin' ? `
                             <button class="action-btn delete" onclick="system.deleteUser(${user.id})">
-                                <i class="fas fa-trash"></i>
+                                <i class="fas fa-trash"></i> Delete
                             </button>
                             ` : ''}
                         </td>
@@ -3592,6 +3764,8 @@
             showUserModal(userId = null) {
                 const modal = document.getElementById('userModal');
                 const title = document.getElementById('userModalTitle');
+                const changePasswordSection = document.getElementById('changePasswordSection');
+                const passwordInput = document.getElementById('userPassword');
                 
                 if (userId) {
                     title.textContent = 'Edit User';
@@ -3601,12 +3775,20 @@
                         document.getElementById('userUsername').value = user.username;
                         document.getElementById('userFullName').value = user.fullName;
                         document.getElementById('userRole').value = user.role;
-                        document.getElementById('userPassword').value = user.password;
+                        passwordInput.value = '';
+                        passwordInput.required = false;
+                        passwordInput.disabled = true;
+                        
+                        changePasswordSection.style.display = 'block';
+                        document.getElementById('changePasswordCheckbox').checked = false;
                     }
                 } else {
                     title.textContent = 'Add User';
                     document.getElementById('userForm').reset();
                     document.getElementById('userId').value = '';
+                    passwordInput.required = true;
+                    passwordInput.disabled = false;
+                    changePasswordSection.style.display = 'none';
                 }
                 
                 this.showModal('userModal');
@@ -3616,24 +3798,37 @@
                 e.preventDefault();
                 
                 const userId = document.getElementById('userId').value;
-                const userData = {
-                    username: document.getElementById('userUsername').value,
-                    fullName: document.getElementById('userFullName').value,
-                    role: document.getElementById('userRole').value,
-                    password: document.getElementById('userPassword').value
-                };
+                const username = document.getElementById('userUsername').value;
+                const fullName = document.getElementById('userFullName').value;
+                const role = document.getElementById('userRole').value;
+                const password = document.getElementById('userPassword').value;
+                const changePassword = document.getElementById('changePasswordCheckbox')?.checked || false;
                 
                 if (userId) {
                     // Update existing user
                     const index = this.data.users.findIndex(u => u.id == userId);
-                    userData.id = parseInt(userId);
-                    this.data.users[index] = userData;
-                    this.showToast('User updated');
+                    if (index !== -1) {
+                        this.data.users[index].username = username;
+                        this.data.users[index].fullName = fullName;
+                        this.data.users[index].role = role;
+                        
+                        if (changePassword && password) {
+                            this.data.users[index].password = password;
+                        }
+                        
+                        this.showToast('User updated');
+                    }
                 } else {
                     // Add new user
-                    userData.id = this.data.users.length > 0 ? 
-                        Math.max(...this.data.users.map(u => u.id)) + 1 : 1;
-                    this.data.users.push(userData);
+                    const newUser = {
+                        id: ++this.data.lastUserId,
+                        username: username,
+                        fullName: fullName,
+                        role: role,
+                        password: password,
+                        lastLogin: null
+                    };
+                    this.data.users.push(newUser);
                     this.showToast('User added');
                 }
                 
@@ -3654,6 +3849,212 @@
                 }
             }
             
+            // Excel Upload Functions
+            handleExcelUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = new Uint8Array(event.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                        
+                        this.excelUploadData = this.processExcelData(jsonData);
+                        this.showExcelPreview();
+                        
+                    } catch (error) {
+                        this.showToast('Error reading Excel file', 'error');
+                        console.error(error);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            
+            processExcelData(jsonData) {
+                const processedData = [];
+                
+                jsonData.forEach((row, index) => {
+                    // Map Excel columns to our data structure
+                    const familyData = {
+                        fNo: parseInt(row['F.No.'] || row['FNo'] || row['fNo'] || 0),
+                        fatherName: row['Father Name'] || row['FatherName'] || '',
+                        students: row['Students'] || '',
+                        classes: row['Classes'] || '',
+                        contact: row['Contact'] || '',
+                        monthlyFee: parseFloat(row['Monthly Fee'] || row['MonthlyFee'] || 0),
+                        address: row['Address'] || '',
+                        email: row['Email'] || '',
+                        payments: {}
+                    };
+                    
+                    // Only add if we have required data
+                    if (familyData.fNo && familyData.fatherName) {
+                        processedData.push(familyData);
+                    }
+                });
+                
+                return processedData;
+            }
+            
+            showExcelPreview() {
+                const previewDiv = document.getElementById('uploadPreview');
+                const previewTable = document.getElementById('previewTable');
+                
+                if (!this.excelUploadData || this.excelUploadData.length === 0) {
+                    this.showToast('No valid data found in Excel file', 'warning');
+                    return;
+                }
+                
+                let tableHTML = `
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background-color: #f8f9fa;">
+                                <th style="padding: 8px; border: 1px solid #ddd;">F.No.</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">Father Name</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">Students</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">Classes</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">Monthly Fee</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                this.excelUploadData.slice(0, 10).forEach(family => {
+                    tableHTML += `
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${family.fNo}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${family.fatherName}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${family.students}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${family.classes}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">PKR ${family.monthlyFee.toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+                
+                if (this.excelUploadData.length > 10) {
+                    tableHTML += `
+                        <tr>
+                            <td colspan="5" style="padding: 8px; text-align: center; border: 1px solid #ddd;">
+                                ... and ${this.excelUploadData.length - 10} more records
+                            </td>
+                        </tr>
+                    `;
+                }
+                
+                tableHTML += `</tbody></table>`;
+                previewTable.innerHTML = tableHTML;
+                previewDiv.style.display = 'block';
+                
+                this.showToast(`Found ${this.excelUploadData.length} valid records`);
+            }
+            
+            confirmExcelUpload() {
+                if (!this.excelUploadData || this.excelUploadData.length === 0) {
+                    this.showToast('No data to upload', 'warning');
+                    return;
+                }
+                
+                let addedCount = 0;
+                let updatedCount = 0;
+                
+                this.excelUploadData.forEach(excelFamily => {
+                    // Check if family already exists by F.No.
+                    const existingIndex = this.data.families.findIndex(f => f.fNo === excelFamily.fNo);
+                    
+                    if (existingIndex !== -1) {
+                        // Update existing family
+                        this.data.families[existingIndex] = {
+                            ...this.data.families[existingIndex],
+                            ...excelFamily,
+                            id: this.data.families[existingIndex].id // Keep existing ID
+                        };
+                        updatedCount++;
+                    } else {
+                        // Add new family
+                        excelFamily.id = ++this.data.lastFamilyId;
+                        this.data.families.push(excelFamily);
+                        addedCount++;
+                    }
+                });
+                
+                this.saveToLocalStorage();
+                this.loadFamiliesTable();
+                
+                this.showToast(`Upload complete: ${addedCount} added, ${updatedCount} updated`);
+                this.resetExcelUpload();
+            }
+            
+            resetExcelUpload() {
+                this.excelUploadData = null;
+                document.getElementById('excelFileInput').value = '';
+                document.getElementById('uploadPreview').style.display = 'none';
+            }
+            
+            downloadTemplate() {
+                const templateData = [
+                    {
+                        "F.No.": 1,
+                        "Father Name": "John Doe",
+                        "Students": "Alice, Bob",
+                        "Classes": "Grade 5, Grade 3",
+                        "Contact": "1234567890",
+                        "Monthly Fee": 5000,
+                        "Address": "123 Main Street",
+                        "Email": "john@example.com"
+                    },
+                    {
+                        "F.No.": 2,
+                        "Father Name": "Jane Smith",
+                        "Students": "Charlie",
+                        "Classes": "Grade 7",
+                        "Contact": "0987654321",
+                        "Monthly Fee": 3000,
+                        "Address": "",
+                        "Email": ""
+                    }
+                ];
+                
+                const ws = XLSX.utils.json_to_sheet(templateData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Template");
+                
+                XLSX.writeFile(wb, "Family_Upload_Template.xlsx");
+            }
+            
+            exportToExcel() {
+                const exportData = this.data.families.map(family => {
+                    const row = {
+                        "F.No.": family.fNo,
+                        "Father Name": family.fatherName,
+                        "Students": family.students,
+                        "Classes": family.classes,
+                        "Contact": family.contact,
+                        "Monthly Fee": family.monthlyFee,
+                        "Address": family.address || "",
+                        "Email": family.email || ""
+                    };
+                    
+                    // Add month columns
+                    this.monthOrder.forEach(month => {
+                        const payment = family.payments?.[month];
+                        row[month] = payment?.amount || "";
+                    });
+                    
+                    return row;
+                });
+                
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Families");
+                
+                XLSX.writeFile(wb, `Fee_Data_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+                this.showToast('Excel exported successfully');
+            }
+            
+            // Backup Functions
             loadBackups() {
                 const tbody = document.getElementById('backupsTableBody');
                 tbody.innerHTML = '';
@@ -3679,9 +4080,13 @@
                 const backupData = {
                     families: this.data.families,
                     transactions: this.data.transactions,
-                    settings: this.settings,
                     users: this.data.users,
-                    timestamp: new Date().toISOString()
+                    settings: this.settings,
+                    lastFamilyId: this.data.lastFamilyId,
+                    lastTransactionId: this.data.lastTransactionId,
+                    lastUserId: this.data.lastUserId,
+                    timestamp: new Date().toISOString(),
+                    version: "3.0"
                 };
                 
                 const backupStr = JSON.stringify(backupData, null, 2);
@@ -3696,7 +4101,6 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                // Record backup
                 this.data.backups.push({
                     id: this.data.backups.length + 1,
                     date: new Date().toISOString(),
@@ -3709,6 +4113,61 @@
                 this.loadBackups();
                 
                 this.showToast('Backup created successfully');
+            }
+            
+            uploadBackupFile() {
+                document.getElementById('backupFileInput').click();
+                document.getElementById('backupFileInput').onchange = (e) => this.restoreBackupFile(e);
+            }
+            
+            restoreBackupFile(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const backupData = JSON.parse(event.target.result);
+                        
+                        // Validate backup format
+                        if (!backupData.families || !backupData.settings || !backupData.version) {
+                            throw new Error('Invalid backup format');
+                        }
+                        
+                        if (confirm('This will replace all current data. Are you sure?')) {
+                            this.data = {
+                                families: backupData.families || [],
+                                transactions: backupData.transactions || [],
+                                users: backupData.users || [],
+                                backups: backupData.backups || [],
+                                lastFamilyId: backupData.lastFamilyId || 0,
+                                lastTransactionId: backupData.lastTransactionId || 0,
+                                lastUserId: backupData.lastUserId || 0
+                            };
+                            
+                            this.settings = backupData.settings || this.loadDefaultSettings();
+                            this.monthOrder = [...this.settings.feeMonths];
+                            
+                            this.saveToLocalStorage();
+                            
+                            this.showToast('Data restored successfully');
+                            this.loadFamiliesTable();
+                            this.loadDashboard();
+                        }
+                    } catch (error) {
+                        this.showToast('Invalid backup file format', 'error');
+                        console.error('Backup restore error:', error);
+                    }
+                };
+                reader.readAsText(file);
+                
+                e.target.value = '';
+            }
+            
+            restoreBackup(backupId) {
+                // This would restore from internal backups
+                // For now, just show message to use file upload
+                this.showToast('Please use the Restore button to upload backup file', 'info');
             }
             
             exportData() {
@@ -3734,88 +4193,18 @@
                 this.showToast('Data exported successfully');
             }
             
-            importData(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const importedData = JSON.parse(event.target.result);
-                        
-                        if (confirm('This will replace all current data. Are you sure?')) {
-                            if (importedData.families && importedData.settings) {
-                                this.data.families = importedData.families;
-                                this.data.transactions = importedData.transactions || [];
-                                this.settings = importedData.settings;
-                                this.saveToLocalStorage();
-                                
-                                this.showToast('Data imported successfully');
-                                this.loadFamiliesTable();
-                                this.loadDashboard();
-                            }
-                        }
-                    } catch (error) {
-                        this.showToast('Invalid file format', 'error');
-                    }
-                };
-                reader.readAsText(file);
-                
-                // Reset file input
-                e.target.value = '';
-            }
-            
-            exportToCSV() {
-                let csv = 'F.No.,Father Name,Students,Classes,Contact,Monthly Fee';
-                
-                // Add month columns
-                this.settings.feeMonths.forEach(month => {
-                    csv += `,${month}`;
-                });
-                csv += '\n';
-                
-                // Add data rows
-                this.data.families.forEach(family => {
-                    csv += `${family.fNo},"${family.fatherName}","${family.students}","${family.classes}","${family.contact}",${family.monthlyFee}`;
-                    
-                    // Add payment data for each month
-                    this.settings.feeMonths.forEach(month => {
-                        const payment = family.payments?.[month];
-                        csv += `,${payment?.amount || ''}`;
-                    });
-                    
-                    csv += '\n';
-                });
-                
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `fee-data-${new Date().toISOString().split('T')[0]}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                this.showToast('CSV exported successfully');
-            }
-            
             clearData() {
                 if (!confirm('This will delete ALL data and cannot be undone. Are you sure?')) return;
                 
                 localStorage.removeItem('feeSystemData');
-                this.data = this.loadInitialData();
+                this.data = this.getDefaultDataStructure();
                 this.settings = this.loadDefaultSettings();
+                this.monthOrder = [...this.settings.feeMonths];
                 this.saveToLocalStorage();
                 
                 this.showToast('All data cleared');
                 this.loadFamiliesTable();
                 this.loadDashboard();
-            }
-            
-            restoreBackup(backupId) {
-                this.showToast('Restore feature requires backup file upload', 'warning');
             }
             
             saveToLocalStorage() {
@@ -3824,15 +4213,6 @@
                     settings: this.settings
                 };
                 localStorage.setItem('feeSystemData', JSON.stringify(saveData));
-                
-                // Also sync with GitHub if configured
-                this.syncWithGitHub();
-            }
-            
-            syncWithGitHub() {
-                // This is a placeholder for GitHub integration
-                // In a real implementation, you would use GitHub API to save data
-                console.log('Data would be synced with GitHub here');
             }
             
             loadFromLocalStorage() {
@@ -3840,8 +4220,9 @@
                 if (saved) {
                     try {
                         const saveData = JSON.parse(saved);
-                        this.data = saveData.data || this.data;
-                        this.settings = saveData.settings || this.settings;
+                        this.data = saveData.data || this.getDefaultDataStructure();
+                        this.settings = saveData.settings || this.loadDefaultSettings();
+                        this.monthOrder = [...this.settings.feeMonths];
                     } catch (error) {
                         console.error('Error loading from localStorage:', error);
                     }
